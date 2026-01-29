@@ -6,7 +6,7 @@ services:
     image: ${DOCKERHUB_USERNAME}/spring-deploy-student99-app:latest
     container_name: spring-deploy-student99-app
     ports:
-      - ${APP_PORT:-9000}:${APP_PORT:-9000}"
+      - ${APP_PORT:-9000}:${APP_PORT:-9000}
     env_file:
       - .env
     restart: always

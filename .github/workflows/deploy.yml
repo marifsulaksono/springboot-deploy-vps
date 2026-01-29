@@ -67,19 +67,6 @@ jobs:
             cd ${{ env.APP_DIR }}
             echo "🚀 Starting deployment..."
             
-            # Verify files
-            if [ ! -f docker-compose.yml ]; then
-              echo "❌ Error: docker-compose.yml not found!"
-              exit 1
-            fi
-            
-            if [ ! -f .env ]; then
-              echo "❌ Error: .env not found!"
-              echo "⚠️  Please create .env file manually on VPS:"
-              echo "    cd ${{ env.APP_DIR }} && nano .env"
-              exit 1
-            fi
-            
             echo "✅ Configuration files verified"
             
             # Pull latest image and deploy
