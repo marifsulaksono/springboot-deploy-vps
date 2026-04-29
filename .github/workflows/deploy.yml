@@ -89,13 +89,13 @@ jobs:
             APP_PORT=$(grep -E '^APP_PORT=' .env | tail -n1 | cut -d '=' -f2)
             APP_PORT=${APP_PORT:-9000}
 
-            for i in {1..10}; do
+            for i in {1..3}; do
               if curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then
                 echo "✅ App is healthy on port ${APP_PORT}"
                 break
               fi
               echo "⏳ Waiting for app health..."
-              sleep 3
+              sleep 10
             done
 
             if ! curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then

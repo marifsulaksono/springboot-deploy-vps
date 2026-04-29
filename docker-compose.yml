@@ -1,16 +1,14 @@
 services:
   spring-app-mentor:
-    image: ${DOCKERHUB_USERNAME}/spring-app-mentor:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/spring-app-mentor:latest
     container_name: spring-app-mentor
     ports:
       - ${APP_PORT:-9000}:${APP_PORT:-9000}
     env_file:
       - .env
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      APP_PORT: ${APP_PORT:-9000}
-      DB_HOST: be_mysql
-      REDIS_HOST: be_redis
     restart: always
     healthcheck:
       test:
