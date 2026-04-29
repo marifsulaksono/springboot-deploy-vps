@@ -1,24 +1,30 @@
 services:
-  spring-deploy-student99-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${DOCKERHUB_USERNAME}/spring-deploy-student99-app:latest
-    container_name: spring-deploy-student99-app
+  spring-app-mentor:
+    image: ${DOCKERHUB_USERNAME}/spring-app-mentor:${IMAGE_TAG:-latest}
+    container_name: spring-app-mentor
     ports:
       - ${APP_PORT:-9000}:${APP_PORT:-9000}
     env_file:
       - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      APP_PORT: ${APP_PORT:-9000}
+      DB_HOST: be_mysql
+      REDIS_HOST: be_redis
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:$${APP_PORT:-9000}/actuator/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --quiet --tries=1 --spider http://localhost:$${APP_PORT:-9000}/actuator/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
-      - classroom_classroom_net
+      - be_classroom_net
 
 networks:
-  classroom_classroom_net:
+  be_classroom_net:
     external: true

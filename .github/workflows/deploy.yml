@@ -1,19 +1,23 @@
 name: CI/CD - Build & Deploy
 
+concurrency:
+  group: deploy-mentor
+  cancel-in-progress: true
+
 on:
   push:
     branches:
       - main
+      - master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     env:
-      # Deployment Configuration - Change image name here
-      IMAGE_NAME: spring-deploy-student99-app
+      IMAGE_NAME: spring-app-mentor
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      APP_DIR: /home/student/spring-app/student99 # Sesuaikan dengan direktori di VPS
+      APP_DIR: /home/backend/spring-app/mentor
 
     steps:
       - name: Checkout source code
@@ -22,31 +26,30 @@ jobs:
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
 
-      - name: Build application with Maven
-        run: mvn clean package -DskipTests
+      - name: Build application
+        run: ./mvnw -B clean package -DskipTests
 
-      # 🐳 BUILD & PUSH DOCKER IMAGE
+      # 🐳 Docker Login
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 🐳 Build & Push
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          cache-to: type=inline
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
-      # � COPY DOCKER-COMPOSE TO VPS
+      # 📦 Copy compose
       - name: Copy docker-compose to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -56,7 +59,7 @@ jobs:
           source: "docker-compose.yml"
           target: "${{ env.APP_DIR }}"
 
-      # 🚀 DEPLOY ON VPS (PULL & RUN ONLY)
+      # 🚀 Deploy
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -65,27 +68,40 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ${{ env.APP_DIR }}
-            echo "🚀 Starting deployment..."
-            
-            echo "✅ Configuration files verified"
-            
-            # Pull latest image and deploy
-            echo "📥 Pulling latest image..."
-            docker compose pull
-            
-            echo "🔄 Restarting services..."
-            docker compose down
-            docker compose up -d
-            
-            echo "⏳ Waiting for health check..."
-            sleep 10
-            
-            # Verify deployment
-            if docker compose ps | grep -q "Up"; then
-              echo "✅ Deployment completed successfully!"
-              docker compose ps
-            else
-              echo "❌ Deployment failed!"
-              docker compose logs
+
+            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            export IMAGE_TAG=${{ github.sha }}
+
+            echo "🚀 Deploying version: $IMAGE_TAG"
+
+            if [ ! -f .env ]; then
+              echo "❌ Missing .env in ${{ env.APP_DIR }}"
               exit 1
             fi
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            echo "📊 Status:"
+            docker compose ps
+
+            APP_PORT=$(grep -E '^APP_PORT=' .env | tail -n1 | cut -d '=' -f2)
+            APP_PORT=${APP_PORT:-9000}
+
+            for i in {1..10}; do
+              if curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then
+                echo "✅ App is healthy on port ${APP_PORT}"
+                break
+              fi
+              echo "⏳ Waiting for app health..."
+              sleep 3
+            done
+
+            if ! curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then
+              echo "❌ Health check failed"
+              docker compose logs --tail=100
+              exit 1
+            fi
+
+            echo "📜 Logs:"
+            docker compose logs --tail=20
