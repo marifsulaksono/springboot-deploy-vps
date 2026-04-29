@@ -21,3 +21,5 @@ public class DeploymentApplication {
 
 
 }
+
+// ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev

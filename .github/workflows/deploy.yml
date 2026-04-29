@@ -60,7 +60,7 @@ jobs:
           target: "${{ env.APP_DIR }}"
           overwrite: true
 
-      # 🚀 Deploy
+      # 🚀 DEPLOY ON VPS (PULL & RUN ONLY)
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -69,33 +69,24 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ${{ env.APP_DIR }}
+            echo "🚀 Starting deployment..."
 
-            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            export IMAGE_TAG=${{ github.sha }}
+            echo "📥 Pulling latest image..."
+            docker compose pull
 
-            echo "🚀 Deploying version: $IMAGE_TAG"
+            echo "🔄 Restarting services..."
+            docker compose down
+            docker compose up -d
 
-            if [ ! -f .env ]; then
-              echo "❌ Missing .env in ${{ env.APP_DIR }}"
+            echo "⏳ Waiting for health check..."
+            sleep 30
+
+            # Verify deployment
+            if docker compose ps | grep -q "Up"; then
+              echo "✅ Deployment completed successfully!"
+              docker compose ps
+            else
+              echo "❌ Deployment failed!"
+              docker compose logs
               exit 1
             fi
-
-            docker compose pull
-            if docker compose up --help | grep -q -- '--wait'; then
-              echo "⏳ Waiting for Docker Compose healthcheck..."
-              if ! docker compose up -d --remove-orphans --wait --wait-timeout 180; then
-                echo "❌ Deploy failed: container did not reach healthy state"
-                docker compose ps
-                docker compose logs --tail=120
-                exit 1
-              fi
-            else
-              echo "ℹ️ Docker Compose does not support --wait, continuing without extra CI health check"
-              docker compose up -d --remove-orphans
-            fi
-
-            echo "📊 Status:"
-            docker compose ps
-
-            echo "📜 Logs:"
-            docker compose logs --tail=20
