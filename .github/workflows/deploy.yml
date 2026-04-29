@@ -81,28 +81,21 @@ jobs:
             fi
 
             docker compose pull
-            docker compose up -d --remove-orphans
+            if docker compose up --help | grep -q -- '--wait'; then
+              echo "⏳ Waiting for Docker Compose healthcheck..."
+              if ! docker compose up -d --remove-orphans --wait --wait-timeout 180; then
+                echo "❌ Deploy failed: container did not reach healthy state"
+                docker compose ps
+                docker compose logs --tail=120
+                exit 1
+              fi
+            else
+              echo "ℹ️ Docker Compose does not support --wait, continuing without extra CI health check"
+              docker compose up -d --remove-orphans
+            fi
 
             echo "📊 Status:"
             docker compose ps
-
-            APP_PORT=$(grep -E '^APP_PORT=' .env | tail -n1 | cut -d '=' -f2)
-            APP_PORT=${APP_PORT:-9000}
-
-            for i in {1..3}; do
-              if curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then
-                echo "✅ App is healthy on port ${APP_PORT}"
-                break
-              fi
-              echo "⏳ Waiting for app health..."
-              sleep 10
-            done
-
-            if ! curl -fsS "http://localhost:${APP_PORT}/actuator/health" > /dev/null; then
-              echo "❌ Health check failed"
-              docker compose logs --tail=100
-              exit 1
-            fi
 
             echo "📜 Logs:"
             docker compose logs --tail=20
